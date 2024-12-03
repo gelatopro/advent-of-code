@@ -1,15 +1,10 @@
 import * as fs from "fs";
+import * as path from "path";
 
-const readFileAndCreateArrays = (
-  filePath: string
-): { col1: number[]; col2: number[] } => {
-  //   console.log("Current working directory:", process.cwd());
-
-  // Read the file synchronously
-  const data = fs.readFileSync(
-    "/Users/yaominggong/repo/advent-of-code-2024/input.txt",
-    "utf-8"
-  );
+const readFileAndCreateArrays = (): { col1: number[]; col2: number[] } => {
+  const currentWorkingDir = process.cwd();
+  const filePath = path.join(currentWorkingDir, "input.txt");
+  const data = fs.readFileSync(filePath, "utf-8");
 
   // Split the file into lines
   const lines = data.trim().split("\n");

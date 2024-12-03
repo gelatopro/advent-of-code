@@ -1,10 +1,10 @@
 import * as fs from "fs";
+import * as path from "path";
 
 const readFile = (): { reports: number[][] } => {
-  const data = fs.readFileSync(
-    "/Users/yaominggong/repo/advent-of-code-2024/input.txt",
-    "utf-8"
-  );
+  const currentWorkingDir = process.cwd();
+  const filePath = path.join(currentWorkingDir, "input.txt");
+  const data = fs.readFileSync(filePath, "utf-8");
 
   const lines = data.trim().split("\n");
   const reports: number[][] = [];
