@@ -3,7 +3,7 @@ import * as path from "path";
 
 const readFile = (): { data: string } => {
   const currentWorkingDir = process.cwd();
-  const filePath = path.join(currentWorkingDir, "input.txt");
+  const filePath = path.join(currentWorkingDir, "2024/input.txt");
   const data = fs.readFileSync(filePath, "utf-8");
 
   return { data };
