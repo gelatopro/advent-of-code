@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { BinarySearchTree } from "@datastructures-js/binary-search-tree";
+import { BST } from "./BST";
+import { MinPriorityQueue } from "@datastructures-js/priority-queue";
 
 const readFile = (): { input: string } => {
   const filePath = path.join(__dirname, "input.txt");
@@ -10,18 +12,32 @@ const readFile = (): { input: string } => {
 };
 
 function moveFileAndCalCheckSum(diskMap: string): number {
-  const diskSpace = restoreDiskSpace(diskMap);
-  moveFileBlocks(diskSpace);
-  return calCheckSum(diskSpace);
+  const diskSpace = _restoreDiskSpace(diskMap);
+  _moveFileBlocks(diskSpace);
+  return _calCheckSum(diskSpace);
 }
 
 function moveWholeFileAndCalCheckSum(diskMap: string): number {
-  const diskSpace = restoreDiskSpace(diskMap);
-  moveWholeFileBruteForce(diskSpace);
-  return calCheckSum(diskSpace);
+  const diskSpace2 = _restoreDiskSpace(diskMap);
+  _moveWholeFile(diskSpace2);
+
+  return _calCheckSum(diskSpace2);
 }
 
-function restoreDiskSpace(diskMap: string): number[] {
+function _checkFirstDiscrepancy(a: number[], b: number[]) {
+  for (let i = 0; i < a.length; i++)
+    if (a[i] !== b[i]) {
+      console.log(
+        `first discrepancy found at idx ${i}, a[i] = ${a[i]}, b[i] = ${b[i]}`
+      );
+      break;
+    }
+
+  _printDisk(a.slice(0, 25));
+  _printDisk(b.slice(0, 25));
+}
+
+function _restoreDiskSpace(diskMap: string): number[] {
   const diskSpace: number[] = [];
   let id = 0;
   for (let i = 0; i < diskMap.length; i++) {
@@ -35,7 +51,7 @@ function restoreDiskSpace(diskMap: string): number[] {
   return diskSpace;
 }
 
-function moveFileBlocks(diskSpace: number[]) {
+function _moveFileBlocks(diskSpace: number[]) {
   let l = 0,
     r = diskSpace.length - 1;
 
@@ -57,7 +73,7 @@ interface Block {
   fileNumber: number | null;
 }
 
-function moveWholeFileBruteForce(diskSpace: number[]) {
+function _moveWholeFileBruteForce(diskSpace: number[]) {
   const files: Block[] = [];
   const spaces: Block[] = [];
   for (let i = 0; i < diskSpace.length; ) {
@@ -90,13 +106,13 @@ function moveWholeFileBruteForce(diskSpace: number[]) {
   }
 }
 
-// TODO: try to optimize the brute force, but this function is incorrect for now.
-function moveWholeFile(diskSpace: number[]) {
-  const tree = new BinarySearchTree<Block>((a, b) => {
-    if (a.length === b.length) return a.idx - b.idx;
-    return a.length - b.length;
-  });
-
+// key observation is that there are only 9 possible lengths (0-9).
+// So the solution is to maintain a MinPriorityQueue for each length
+function _moveWholeFile(diskSpace: number[]) {
+  const emptySpaces: MinPriorityQueue<number>[] = Array.from(
+    { length: 10 },
+    () => new MinPriorityQueue()
+  );
   const files: Block[] = [];
 
   for (let i = 0; i < diskSpace.length; ) {
@@ -105,7 +121,7 @@ function moveWholeFile(diskSpace: number[]) {
     const length = j - i,
       v = diskSpace[i];
     if (v === -1) {
-      tree.insert({ length: length, idx: i, fileNumber: null });
+      emptySpaces[length].enqueue(length, i);
     } else {
       files.push({ length: length, idx: i, fileNumber: v });
     }
@@ -113,79 +129,43 @@ function moveWholeFile(diskSpace: number[]) {
   }
 
   for (let i = files.length - 1; i >= 0; i--) {
-    const fileIdx = files[i].idx,
+    const fileIndex = files[i].idx,
       fileLength = files[i].length,
       fileNumber = files[i].fileNumber;
 
-    // console.log(fileNumber);
-    // printDisk(diskSpace);
-    // printTree(tree);
+    let availableSpaceIdx: number | null = null;
+    let choosenLength: number | null = null;
 
-    let emptySpace = tree.upperBound({
-      length: fileLength,
-      idx: -1e10,
-      fileNumber: null,
-    });
-
-    // if (emptySpace && emptySpace.getValue().idx < fileIdx) {
-    //   const start = emptySpace.getValue().idx,
-    //     spaceLength = emptySpace.getValue().length;
-    //   for (let j = 0; j < fileLength; j++) {
-    //     diskSpace[start + j] = fileNumber!;
-    //     diskSpace[fileIdx + j] = -1;
-    //   }
-
-    //   // step 1: the previous empty space now has shrunk, update the bst
-    //   tree.removeNode(emptySpace);
-    //   if (spaceLength > fileLength) {
-    //     tree.insert({
-    //       length: spaceLength - fileLength,
-    //       idx: start + fileLength,
-    //       fileNumber: null,
-    //     });
-    //   }
-    // }
-
-    // not great but could work
-    let tryLength = fileLength;
-    while (emptySpace) {
-      if (emptySpace && emptySpace.getValue().idx < fileIdx) {
-        const start = emptySpace.getValue().idx,
-          spaceLength = emptySpace.getValue().length;
-        for (let j = 0; j < fileLength; j++) {
-          diskSpace[start + j] = fileNumber!;
-          diskSpace[fileIdx + j] = -1;
+    // find the smallest idx from MinPriorityQueues with length >= fileLength
+    for (let len = fileLength; len < 10; len++) {
+      if (!emptySpaces[len].isEmpty()) {
+        const idx = emptySpaces[len].front().priority;
+        if (!availableSpaceIdx || idx < availableSpaceIdx) {
+          availableSpaceIdx = idx;
+          choosenLength = len;
         }
+      }
+    }
 
-        // step 1: the previous empty space now has shrunk, update the bst
-        tree.removeNode(emptySpace);
-        if (spaceLength > fileLength) {
-          tree.insert({
-            length: spaceLength - fileLength,
-            idx: start + fileLength,
-            fileNumber: null,
-          });
-        }
+    if (availableSpaceIdx && availableSpaceIdx < fileIndex) {
+      const tmp = emptySpaces[choosenLength!].dequeue();
+      const spaceLength = tmp.element;
+      for (let j = 0; j < fileLength; j++) {
+        diskSpace[fileIndex + j] = -1;
+        diskSpace[availableSpaceIdx + j] = fileNumber!;
+      }
 
-        break;
-      } else {
-        emptySpace = tree.upperBound({
-          length: tryLength + 1,
-          idx: fileIdx,
-          fileNumber: null,
-        });
-        tryLength++;
+      if (spaceLength > fileLength) {
+        emptySpaces[spaceLength - fileLength].enqueue(
+          spaceLength - fileLength,
+          availableSpaceIdx + fileLength
+        );
       }
     }
   }
 }
 
-function printTree(tree: BinarySearchTree<Block>) {
-  tree.traverseInOrder((v) => console.log(v.getValue()));
-  console.log("---");
-}
-
-function printDisk(diskSpace: number[]) {
+function _printDisk(diskSpace: number[]) {
   let disk = "";
   for (let v of diskSpace) {
     if (v === -1) disk += ".";
@@ -194,7 +174,7 @@ function printDisk(diskSpace: number[]) {
   console.log(disk);
 }
 
-function calCheckSum(diskSpace: number[]): number {
+function _calCheckSum(diskSpace: number[]): number {
   let res = 0;
   for (let i = 0; i < diskSpace.length; i++)
     if (diskSpace[i] !== -1) res += diskSpace[i] * i;
@@ -202,5 +182,5 @@ function calCheckSum(diskSpace: number[]): number {
 }
 
 const { input } = readFile();
-// console.log(moveFileAndCalCheckSum(input));
+console.log(moveFileAndCalCheckSum(input));
 console.log(moveWholeFileAndCalCheckSum(input));
