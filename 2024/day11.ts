@@ -42,28 +42,14 @@ function _dfs(stone: string, times: number): number {
     return blinkMap.get(stoneNumber)?.get(times)!;
   }
 
-  let tmp: string[] = [];
-  if (times <= 25) {
-    tmp = [stone];
-    for (let i = 0; i < times; i++) {
-      tmp = _blink(tmp);
-    }
-    _addToMap(stoneNumber, times, tmp.length);
-    return tmp.length;
-  } else {
-    let tmp = [stone];
-    for (let i = 0; i < 5; i++) {
-      tmp = _blink(tmp);
-    }
-    _addToMap(stoneNumber, 5, tmp.length);
-    let ans = 0;
-    for (let i = 0; i < tmp.length; i++) {
-      ans += _dfs(tmp[i], times - 5);
-    }
-
-    _addToMap(stoneNumber, times, ans);
-    return ans;
+  if (times === 0) return 1;
+  let tmp: string[] = _blink([stone]);
+  let ans = 0;
+  for (let i = 0; i < tmp.length; i++) {
+    ans += _dfs(tmp[i], times - 1);
   }
+  _addToMap(stoneNumber, times, ans);
+  return ans;
 }
 
 function _blink(stones: string[]): string[] {
