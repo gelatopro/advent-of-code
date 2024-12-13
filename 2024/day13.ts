@@ -121,7 +121,7 @@ function _calc(
     if (x1 * y2 === x2 * y1 && x2 * y === x * y2) {
       const c = _gcd(y1, y2);
       if (y % c === 0) {
-        // better solution?
+        // better solution：https://en.wikipedia.org/wiki/Extended_Euclidean_algorithm
         let ans: number | null = null;
         for (let i = 0; i < Math.floor(y / y1); i++) {
           const tmp = y - y1 * i;
