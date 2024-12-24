@@ -220,50 +220,7 @@ const input = _readFile();
 const { gatesIds, gatesNames, gatesValues, edgeDescription } =
   _processInput(input);
 
-// console.log(gatesId);
-// console.log(gatesNames);
-// console.log(gatesValues);
-// console.log(edgeDescription);
 // console.log(simulate(gatesIds, gatesNames, gatesValues, edgeDescription));
-
-process(edgeDescription);
-
-function process(edgeDescription: string[]) {
-  const sortedEdges: string[] = [];
-  for (let edge of edgeDescription) {
-    const [condition, toStr] = edge.split("->").map((str) => str.trim());
-    let from1Str = "",
-      from2Str = "",
-      operation = "";
-    if (condition.includes("AND")) {
-      [from1Str, from2Str] = condition.split("AND").map((str) => str.trim());
-      operation = "AND";
-    } else if (condition.includes("XOR")) {
-      [from1Str, from2Str] = condition.split("XOR").map((str) => str.trim());
-      operation = "XOR";
-    } else if (condition.includes("OR")) {
-      [from1Str, from2Str] = condition.split("OR").map((str) => str.trim());
-      operation = "OR";
-    }
-    if (from1Str > from2Str) {
-      sortedEdges.push(
-        from2Str + " " + operation + " " + from1Str + "->" + toStr
-      );
-    } else {
-      sortedEdges.push(
-        from1Str + " " + operation + " " + from2Str + "->" + toStr
-      );
-    }
-  }
-
-  sortedEdges.sort((a, b) => a.localeCompare(b));
-
-  let str = "";
-  for (let edge of sortedEdges) {
-    str += edge + "\n";
-  }
-  _writeFile(str, "output.txt");
-}
 
 enum Operation {
   INVALID,
@@ -322,6 +279,78 @@ function process2(edgeDescription: string[]) {
   }
 }
 
+function findWrongPairsOfOutput(edgeDescription: string[]): string {
+  const ops = _toGateOperations(edgeDescription);
+  let prevCarry = "gmk";
+  const res: string[] = [];
+  for (let i = 1; i < 45; i++) {
+    const x = _getSymbol(i, "x");
+    const y = _getSymbol(i, "y");
+    const z = _getSymbol(i, "z");
+    const xor = _findByOperands(ops, x, y, Operation.XOR);
+    const prevCarryXOR = _findBySingleOperand(ops, prevCarry, Operation.XOR);
+    const prevCarryAND = _findBySingleOperand(ops, prevCarry, Operation.AND);
+
+    // check1: prevCarryXOR result should be z(i)
+    if (prevCarryXOR.c !== z) {
+      // if not, swap z(i) and prevCarryXOR.c result
+      const zi = _findByResult(ops, z);
+      _swapResult(prevCarryXOR, zi!);
+      console.log(`swapping ${prevCarryXOR.c}, ${zi!.c}`);
+      res.push(prevCarryXOR.c);
+      res.push(zi!.c);
+    }
+    const andOtherOperand =
+      prevCarryAND.a === prevCarry ? prevCarryAND.b : prevCarryAND.a;
+
+    //check2: the operand AND prevCarry should be x(i) xor y(i)
+    if (andOtherOperand !== xor!.c) {
+      const xorOtherOprand =
+        prevCarryXOR.a === prevCarry ? prevCarryXOR.b : prevCarryXOR.a;
+      const tmp = _findByResult(ops, xorOtherOprand);
+      _swapResult(tmp!, xor!);
+      res.push(tmp!.c);
+      res.push(xor!.c);
+      console.log(`swapping ${tmp!.c}, ${xor!.c}`);
+    }
+
+    const and = _findByOperands(ops, x, y, Operation.AND)!;
+    const prevCarryAndxyXOR = _findBySingleOperand(
+      ops,
+      prevCarry,
+      Operation.AND
+    );
+
+    // could this be wrong?
+    const nextCarry = _findBySingleOperand(
+      ops,
+      prevCarryAndxyXOR.c,
+      Operation.OR
+    );
+
+    const orOtherOperand =
+      nextCarry.a === prevCarryAndxyXOR.c ? nextCarry.b : nextCarry.a;
+
+    // check 3: fix this carry = (a[i] & b[i]) | (prevCarry & (a[i] ^ b[i]));
+    if (orOtherOperand !== and.c) {
+      const tmp = _findByResult(ops, orOtherOperand);
+      _swapResult(tmp!, and);
+      res.push(tmp!.c);
+      res.push(and.c);
+    }
+
+    prevCarry = nextCarry.c;
+  }
+  res.sort();
+  return res.join(",");
+}
+
+function _swapResult(op1: GateOperation, op2: GateOperation) {
+  const tmp = op1.c;
+  op1.c = op2.c;
+  op2.c = tmp;
+}
+
 function _toGateOperations(edgeDescription: string[]): GateOperation[] {
   const ops: GateOperation[] = [];
   for (let edge of edgeDescription) {
@@ -374,6 +403,20 @@ function _findByOperands(
   return null;
 }
 
+function _findBySingleOperand(
+  ops: GateOperation[],
+  symbol1: string,
+  operation: Operation
+): GateOperation {
+  for (let op of ops) {
+    if (op.op === operation && (op.a === symbol1 || op.b === symbol1))
+      return op;
+  }
+  throw Error(
+    `Cannot find gate opreation op = ${operation}, symbol = ${symbol1}`
+  );
+}
+
 function _findByResult(
   ops: GateOperation[],
   resultSymbol: string
@@ -389,7 +432,9 @@ function _getSymbol(i: number, prefix: string): string {
   else return prefix + "0" + i.toString();
 }
 
-process2(edgeDescription);
+// process2(edgeDescription);
+
+console.log(findWrongPairsOfOutput(edgeDescription));
 
 // ANSWER: all pairs
 // gmt <> z07
